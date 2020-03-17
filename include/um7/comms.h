@@ -32,8 +32,8 @@
  *
  */
 
-#ifndef UM7_COMMS_H_
-#define UM7_COMMS_H_
+#ifndef UM7_COMMS_HHP_
+#define UM7_COMMS_HHP_
 
 #include <stdint.h>
 #include <string>
@@ -87,5 +87,4 @@ private:
 };
 }  // namespace um7
 
-#endif  // UM7_COMMS_H
-
+#endif  // UM7_COMMS_HHP

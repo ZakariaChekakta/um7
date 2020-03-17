@@ -34,16 +34,22 @@
  */
 #include <string>
 
-#include "geometry_msgs/Vector3Stamped.h"
-#include "ros/ros.h"
-#include "sensor_msgs/Imu.h"
-#include "sensor_msgs/MagneticField.h"
+
+#include "geometry_msgs/msg/vector3_stamped.hpp"
+
+#include <chrono>
+#include <memory>
+
+#include <rclcpp/rclcpp.hpp>
+#include "sensor_msgs/msg/imu.hpp"
+
+#include "sensor_msgs/msg/magnetic_field.hpp"
 #include "serial/serial.h"
-#include "std_msgs/Float32.h"
-#include "std_msgs/Header.h"
-#include "um7/comms.h"
-#include "um7/registers.h"
-#include "um7/Reset.h"
+#include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/header.hpp"
+#include <um7/comms.h>
+#include <um7/registers.h>
+#include <um7/Reset.h>
 
 const char VERSION[10] = "0.0.2";   // um7_driver version
 
@@ -79,7 +85,7 @@ void configureVector3(um7::Comms* sensor, const um7::Accessor<RegT>& reg,
     ros::param::get(param + "/x", x);
     ros::param::get(param + "/y", y);
     ros::param::get(param + "/z", z);
-    ROS_INFO_STREAM("Configuring " << human_name << " to ("
+    RCLCPP_INFO_STREAM("Configuring " << human_name << " to ("
                     << x << ", " << y << ", " << z << ")");
     reg.set_scaled(0, x);
     reg.set_scaled(1, y);
@@ -98,7 +104,7 @@ void configureVector3(um7::Comms* sensor, const um7::Accessor<RegT>& reg,
 template<typename RegT>
 void sendCommand(um7::Comms* sensor, const um7::Accessor<RegT>& reg, std::string human_name)
 {
-  ROS_INFO_STREAM("Sending command: " << human_name);
+  RCLCPP_INFO_STREAM("Sending command: " << human_name);
   if (!sensor->sendWaitAck(reg))
   {
     throw std::runtime_error("Command to device failed.");
@@ -110,7 +116,7 @@ void sendCommand(um7::Comms* sensor, const um7::Accessor<RegT>& reg, std::string
  * Send configuration messages to the UM7, critically, to turn on the value outputs
  * which we require, and inject necessary configuration parameters.
  */
-void configureSensor(um7::Comms* sensor, ros::NodeHandle *private_nh)
+void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr private_nh)
 {
   um7::Registers r;
 
@@ -126,11 +132,11 @@ void configureSensor(um7::Comms* sensor, ros::NodeHandle *private_nh)
   private_nh->param<int>("update_rate", rate, 20);
   if (rate < 20 || rate > 255)
   {
-    ROS_WARN("Potentially unsupported update rate of %d", rate);
+    RCLCPP_WARN("Potentially unsupported update rate of %d", rate);
   }
 
   uint32_t rate_bits = static_cast<uint32_t>(rate);
-  ROS_INFO("Setting update rate to %uHz", rate);
+  RCLCPP_INFO("Setting update rate to %uHz", rate);
   uint32_t raw_rate = (rate_bits << RATE2_ALL_RAW_START);
   r.comrate2.set(0, raw_rate);
   if (!sensor->sendWaitAck(r.comrate2))
@@ -172,7 +178,7 @@ void configureSensor(um7::Comms* sensor, ros::NodeHandle *private_nh)
   }
   else
   {
-    ROS_WARN("Excluding magnetometer updates from EKF.");
+    RCLCPP_WARN("Excluding magnetometer updates from EKF.");
   }
 
   // Optionally enable quaternion mode .
@@ -184,7 +190,7 @@ void configureSensor(um7::Comms* sensor, ros::NodeHandle *private_nh)
   }
   else
   {
-    ROS_WARN("Excluding quaternion mode.");
+    RCLCPP_WARN("Excluding quaternion mode.");
   }
 
   r.misc_config.set(0, misc_config_reg);
@@ -214,21 +220,21 @@ bool handleResetService(um7::Comms* sensor,
  * Uses the register accessors to grab data from the IMU, and populate
  * the ROS messages which are output.
  */
-void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& imu_msg,
+void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs::Imu& imu_msg,
     OutputAxisOption axes, bool use_magnetic_field_msg)
 {
-  static ros::Publisher imu_pub = imu_nh->advertise<sensor_msgs::Imu>("data", 1, false);
+  static ros::Publisher imu_pub = imu_nh->advertise<sensor_msgs::msg::Imu>("data", 1, false);
   static ros::Publisher mag_pub;
   if (use_magnetic_field_msg)
   {
-    mag_pub = imu_nh->advertise<sensor_msgs::MagneticField>("mag", 1, false);
+    mag_pub = imu_nh->advertise<sensor_msgs::msg::MagneticField>("mag", 1, false);
   }
   else
   {
-    mag_pub = imu_nh->advertise<geometry_msgs::Vector3Stamped>("mag", 1, false);
+    mag_pub = imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("mag", 1, false);
   }
-  static ros::Publisher rpy_pub = imu_nh->advertise<geometry_msgs::Vector3Stamped>("rpy", 1, false);
-  static ros::Publisher temp_pub = imu_nh->advertise<std_msgs::Float32>("temperature", 1, false);
+  static ros::Publisher rpy_pub = imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("rpy", 1, false);
+  static ros::Publisher temp_pub = imu_nh->advertise<std_msgs::msg::Float32>("temperature", 1, false);
 
   if (imu_pub.getNumSubscribers() > 0)
   {
@@ -291,7 +297,7 @@ void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& i
         break;
       }
       default:
-        ROS_ERROR("OuputAxes enum value invalid");
+        RCLCPP_ERROR("OuputAxes enum value invalid");
     }
 
     imu_pub.publish(imu_msg);
@@ -330,7 +336,7 @@ void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& i
           break;
         }
         default:
-          ROS_ERROR("OuputAxes enum value invalid");
+          RCLCPP_ERROR("OuputAxes enum value invalid");
       }
 
       mag_pub.publish(mag_msg);
@@ -365,7 +371,7 @@ void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& i
           break;
         }
         default:
-          ROS_ERROR("OuputAxes enum value invalid");
+          RCLCPP_ERROR("OuputAxes enum value invalid");
       }
 
       mag_pub.publish(mag_msg);
@@ -403,7 +409,7 @@ void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& i
         break;
       }
       default:
-        ROS_ERROR("OuputAxes enum value invalid");
+        RCLCPP_ERROR("OuputAxes enum value invalid");
     }
 
     rpy_pub.publish(rpy_msg);
@@ -423,23 +429,27 @@ void publishMsgs(um7::Registers& r, ros::NodeHandle* imu_nh, sensor_msgs::Imu& i
  */
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "um7_driver");
-
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("um7_driver");
+  
   // Load parameters from private node handle.
-  std::string port;
-  int32_t baud;
+  std::string port_;
+  int32_t baud_;
+  rclcpp::Node::SharedPtr nh_;
 
-  ros::NodeHandle imu_nh("imu"), private_nh("~");
-  private_nh.param<std::string>("port", port, "/dev/ttyUSB0");
-  private_nh.param<int32_t>("baud", baud, 115200);
+  nh_->declare_parameter("port", rclcpp::ParameterValue(std::string("/dev/ttyUSB0")));
+  nh_->declare_parameter("baud", rclcpp::ParameterValue(115200));
+  nh_->get_parameter("port", port_);
+  nh_->get_parameter("baud", baud_);
+  
 
   serial::Serial ser;
-  ser.setPort(port);
-  ser.setBaudrate(baud);
+  ser.setPort(port_);
+  ser.setBaudrate(baud_);
   serial::Timeout to = serial::Timeout(50, 50, 0, 50, 0);
   ser.setTimeout(to);
 
-  sensor_msgs::Imu imu_msg;
+  sensor_msgs::msg::Imu imu_msg;
   double linear_acceleration_stdev, angular_velocity_stdev;
   private_nh.param<std::string>("frame_id", imu_msg.header.frame_id, "imu_link");
   // Defaults obtained experimentally from hardware, no device spec exists
@@ -467,7 +477,7 @@ int main(int argc, char **argv)
   OutputAxisOption axes = OutputAxisOptions::DEFAULT;
   if (tf_ned_to_enu && orientation_in_robot_frame)
   {
-    ROS_ERROR("Requested IMU data in two separate frames.");
+    RCLCPP_ERROR("Requested IMU data in two separate frames.");
   }
   else if (tf_ned_to_enu)
   {
@@ -480,7 +490,9 @@ int main(int argc, char **argv)
 
   // Use MagneticField message rather than Vector3Stamped.
   bool use_magnetic_field_msg;
-  private_nh.param<bool>("use_magnetic_field_msg", use_magnetic_field_msg, false);
+  nh_->declare_parameter("use_magnetic_field_msg", rclcpp::ParameterValue(std::Bool(false));
+  nh_->get_parameter("use_magnetic_field_msg", use_magnetic_field_msg);
+  
 
   // These values do not need to be converted
   imu_msg.linear_acceleration_covariance[0] = linear_acceleration_cov;
@@ -497,7 +509,7 @@ int main(int argc, char **argv)
 
   // Real Time Loop
   bool first_failure = true;
-  while (ros::ok())
+  while (rclcpp::ok())
   {
     try
     {
@@ -505,21 +517,21 @@ int main(int argc, char **argv)
     }
     catch (const serial::IOException& e)
     {
-        ROS_WARN("um7_driver was unable to connect to port %s.", port.c_str());
+        RCLCPP_INFO("um7_driver was unable to connect to port %s.", port_.c_str());
     }
     if (ser.isOpen())
     {
-      ROS_INFO("um7_driver successfully connected to serial port %s.", port.c_str());
+      RCLCPP_INFO("um7_driver successfully connected to serial port %s.", port_.c_str());
       first_failure = true;
       try
       {
-        um7::Comms sensor(&ser);
-        configureSensor(&sensor, &private_nh);
-        um7::Registers registers;
-        ros::ServiceServer srv = imu_nh.advertiseService<um7::Reset::Request, um7::Reset::Response>(
-            "reset", boost::bind(handleResetService, &sensor, _1, _2));
+       // um7::Comms sensor(&ser);
+       // configureSensor(&sensor, nh_);
+       // um7::Registers registers;
+       // ros::ServiceServer srv = imu_nh.advertiseService<um7::Reset::Request, um7::Reset::Response>(
+       //     "reset", boost::bind(handleResetService, &sensor, _1, _2));
 
-        while (ros::ok())
+        while (rclcpp::ok())
         {
           // triggered by arrival of last message packet
           if (sensor.receive(&registers) == TRIGGER_PACKET)
@@ -534,15 +546,15 @@ int main(int argc, char **argv)
       catch(const std::exception& e)
       {
         if (ser.isOpen()) ser.close();
-        ROS_ERROR_STREAM(e.what());
-        ROS_INFO("Attempting reconnection after error.");
+        RCLCPP_ERROR(e.what());
+        RCLCPP_INFO("Attempting reconnection after error.");
         ros::Duration(1.0).sleep();
       }
     }
     else
     {
       ROS_WARN_STREAM_COND(first_failure, "Could not connect to serial device "
-                           << port << ". Trying again every 1 second.");
+                           << port_ << ". Trying again every 1 second.");
       first_failure = false;
       ros::Duration(1.0).sleep();
     }

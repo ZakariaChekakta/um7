@@ -1,57 +1,79 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(um7)
 
-find_package(catkin REQUIRED COMPONENTS roscpp serial sensor_msgs message_generation)
-
-add_service_files(
-  FILES
-  Reset.srv
-)
-
-generate_messages()
-
-catkin_package(
-   INCLUDE_DIRS include
-   CATKIN_DEPENDS message_runtime
-)
-
-###########
-## Build ##
-###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
-include_directories(include
-  ${catkin_INCLUDE_DIRS}
-)
-
-## Declare a cpp executable
-add_executable(um7_driver src/main.cpp src/registers.cpp src/comms.cpp)
-target_link_libraries(um7_driver ${catkin_LIBRARIES} )
-add_dependencies(um7_driver um7_generate_messages_cpp)
-
-#############
-## Install ##
-#############
-
-install(TARGETS um7_driver
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-#############
-## Testing ##
-#############
-if(CATKIN_ENABLE_TESTING)
-  find_package(roslint REQUIRED)
-
-  catkin_add_gtest(${PROJECT_NAME}_test_registers test/test_registers.cpp src/registers.cpp)
-  catkin_add_gtest(${PROJECT_NAME}_test_comms test/test_comms.cpp src/comms.cpp src/registers.cpp)
-  target_link_libraries(${PROJECT_NAME}_test_comms util ${catkin_LIBRARIES})
-
-  file(GLOB LINT_SRCS
-    src/*.cpp
-    include/um7/registers.h
-    include/um7/comms.h)
-  roslint_cpp(${LINT_SRCS})
-  roslint_add_test()
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
 endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(serial REQUIRED)
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
+
+include_directories(include)
+
+set(
+  DEPENDENCIES
+  "rclcpp"
+  "std_msgs"
+  "geometry_msgs"
+  "sensor_msgs"
+  "serial"
+)
+
+include_directories(
+  include
+  ${rclcpp_INCLUDE_DIRS}
+  ${serial_INCLUDE_DIRS}
+  ${tf2_INCLUDE_DIRS}
+  ${tf2_ros_INCLUDE_DIRS}
+  ${geometry_msgs_INCLUDE_DIRS}
+  ${nav_msgs_INCLUDE_DIRS}
+  ${sensor_msgs_INCLUDE_DIRS}
+)
+
+add_executable(um7_driver
+  src/main.cpp
+)
+ament_target_dependencies(um7_driver ${DEPENDENCIES})
+
+install(
+  TARGETS um7_driver
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # uncomment the line when a copyright and license is not present in all source files
+  #set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # uncomment the line when this package is not in a git repo
+  #set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_export_include_directories(include)
+
+ament_export_dependencies(${DEPENDENCIES})
+
+ament_package()

@@ -33,8 +33,8 @@
  *
  */
 
-#ifndef UM7_REGISTERS_H_
-#define UM7_REGISTERS_H_
+#ifndef UM7_REGISTERS_HHP_
+#define UM7_REGISTERS_HHP_
 
 #if __APPLE__
 #include <machine/endian.h>
@@ -213,4 +213,4 @@ class Registers
 };
 }  // namespace um7
 
-#endif  // UM7_REGISTERS_H_
+#endif  // UM7_REGISTERS_HHP_

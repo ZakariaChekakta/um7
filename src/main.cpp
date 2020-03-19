@@ -41,6 +41,7 @@
 #include <memory>
 
 #include <rclcpp/rclcpp.hpp>
+#include "rclcpp/logger.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
 #include "sensor_msgs/msg/magnetic_field.hpp"
@@ -49,7 +50,8 @@
 #include "std_msgs/msg/header.hpp"
 #include <um7/comms.h>
 #include <um7/registers.h>
-#include <um7/Reset.h>
+//#include "um7/srv/reset.hpp"
+
 
 const char VERSION[10] = "0.0.2";   // um7_driver version
 
@@ -66,10 +68,13 @@ namespace OutputAxisOptions
 }
 typedef OutputAxisOptions::OutputAxisOption OutputAxisOption;
 
+
+
 /**
  * Function generalizes the process of writing an XYZ vector into consecutive
  * fields in UM7 registers.
  */
+/*
 template<typename RegT>
 void configureVector3(um7::Comms* sensor, const um7::Accessor<RegT>& reg,
                       std::string param, std::string human_name)
@@ -96,11 +101,13 @@ void configureVector3(um7::Comms* sensor, const um7::Accessor<RegT>& reg,
     }
   }
 }
-
+*/
 /**
  * Function generalizes the process of commanding the UM7 via one of its command
  * registers.
  */
+
+/*
 template<typename RegT>
 void sendCommand(um7::Comms* sensor, const um7::Accessor<RegT>& reg, std::string human_name)
 {
@@ -110,13 +117,15 @@ void sendCommand(um7::Comms* sensor, const um7::Accessor<RegT>& reg, std::string
     throw std::runtime_error("Command to device failed.");
   }
 }
-
+*/
 
 /**
  * Send configuration messages to the UM7, critically, to turn on the value outputs
  * which we require, and inject necessary configuration parameters.
  */
-void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr private_nh)
+
+
+void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr nh_)
 {
   um7::Registers r;
 
@@ -129,14 +138,18 @@ void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr private_nh)
 
   // set the broadcast rate of the device
   int rate;
-  private_nh->param<int>("update_rate", rate, 20);
+
+  nh_->declare_parameter("update_rate", rclcpp::ParameterValue(20));
+  nh_->get_parameter("update_rate",rate);
+  
   if (rate < 20 || rate > 255)
   {
-    RCLCPP_WARN("Potentially unsupported update rate of %d", rate);
+    RCLCPP_WARN(nh_->get_logger(),"Potentially unsupported update rate of %d", rate);
   }
 
   uint32_t rate_bits = static_cast<uint32_t>(rate);
-  RCLCPP_INFO("Setting update rate to %uHz", rate);
+  RCLCPP_INFO(nh_->get_logger(),"Setting update rate to %uHz", rate);
+
   uint32_t raw_rate = (rate_bits << RATE2_ALL_RAW_START);
   r.comrate2.set(0, raw_rate);
   if (!sensor->sendWaitAck(r.comrate2))
@@ -171,26 +184,30 @@ void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr private_nh)
 
   // Optionally disable mag updates in the sensor's EKF.
   bool mag_updates;
-  private_nh->param<bool>("mag_updates", mag_updates, true);
+
+  nh_->declare_parameter("mag_updates", rclcpp::ParameterValue(true));
+  nh_->get_parameter("mag_updates",mag_updates);
+  
   if (mag_updates)
   {
     misc_config_reg |= MAG_UPDATES_ENABLED;
   }
   else
   {
-    RCLCPP_WARN("Excluding magnetometer updates from EKF.");
+    RCLCPP_WARN(nh_->get_logger(),"Excluding magnetometer updates from EKF.");
   }
 
   // Optionally enable quaternion mode .
   bool quat_mode;
-  private_nh->param<bool>("quat_mode", quat_mode, true);
+  nh_->declare_parameter("quat_mode", rclcpp::ParameterValue(true));
+  nh_->get_parameter("quat_mode",quat_mode);
   if (quat_mode)
   {
     misc_config_reg |= QUATERNION_MODE_ENABLED;
   }
   else
   {
-    RCLCPP_WARN("Excluding quaternion mode.");
+    RCLCPP_WARN(nh_->get_logger(),"Excluding quaternion mode.");
   }
 
   r.misc_config.set(0, misc_config_reg);
@@ -201,11 +218,14 @@ void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr private_nh)
 
   // Optionally disable performing a zero gyros command on driver startup.
   bool zero_gyros;
-  private_nh->param<bool>("zero_gyros", zero_gyros, true);
-  if (zero_gyros) sendCommand(sensor, r.cmd_zero_gyros, "zero gyroscopes");
+  nh_->declare_parameter("zero_gyros", rclcpp::ParameterValue(true));
+  nh_->get_parameter("zero_gyros",zero_gyros);
+  //if (zero_gyros) sendCommand(sensor, r.cmd_zero_gyros, "zero gyroscopes");
 }
 
 
+
+/*
 bool handleResetService(um7::Comms* sensor,
     const um7::Reset::Request& req, const um7::Reset::Response& resp)
 {
@@ -216,11 +236,14 @@ bool handleResetService(um7::Comms* sensor,
   return true;
 }
 
+*/
 /**
  * Uses the register accessors to grab data from the IMU, and populate
  * the ROS messages which are output.
  */
-void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs::Imu& imu_msg,
+
+/*
+void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs::msg::Imu& imu_msg,
     OutputAxisOption axes, bool use_magnetic_field_msg)
 {
   static ros::Publisher imu_pub = imu_nh->advertise<sensor_msgs::msg::Imu>("data", 1, false);
@@ -423,7 +446,7 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
     temp_pub.publish(temp_msg);
   }
 }
-
+*/
 /**
  * Node entry-point. Handles ROS setup, and serial port connection/reconnection.
  */
@@ -437,10 +460,11 @@ int main(int argc, char **argv)
   int32_t baud_;
   rclcpp::Node::SharedPtr nh_;
 
-  nh_->declare_parameter("port", rclcpp::ParameterValue(std::string("/dev/ttyUSB0")));
-  nh_->declare_parameter("baud", rclcpp::ParameterValue(115200));
-  nh_->get_parameter("port", port_);
-  nh_->get_parameter("baud", baud_);
+
+  node->declare_parameter("port", rclcpp::ParameterValue(std::string("/dev/ttyUSB0")));
+  node->declare_parameter("baud", rclcpp::ParameterValue(115200));
+  node->get_parameter("port", port_);
+  node->get_parameter("baud", baud_);
   
 
   serial::Serial ser;
@@ -451,33 +475,46 @@ int main(int argc, char **argv)
 
   sensor_msgs::msg::Imu imu_msg;
   double linear_acceleration_stdev, angular_velocity_stdev;
-  private_nh.param<std::string>("frame_id", imu_msg.header.frame_id, "imu_link");
-  // Defaults obtained experimentally from hardware, no device spec exists
-  private_nh.param<double>("linear_acceleration_stdev", linear_acceleration_stdev, (4.0 * 1e-3f * 9.80665));
-  private_nh.param<double>("angular_velocity_stdev", angular_velocity_stdev, (0.06 * 3.14159 / 180.0));
+
+  node->declare_parameter("frame_id", rclcpp::ParameterValue(std::string("imu_link")));
+  node->declare_parameter("linear_acceleration_stdev", rclcpp::ParameterValue(4.0 * 1e-3f * 9.80665));
+  node->declare_parameter("angular_velocity_stdev", rclcpp::ParameterValue(0.06 * 3.14159 / 180.0));
+  node->get_parameter("frame_id",imu_msg.header.frame_id);
+  node->get_parameter("linear_acceleration_stdev",linear_acceleration_stdev);
+  node->get_parameter("angular_velocity_stdev",angular_velocity_stdev);
 
   double linear_acceleration_cov = linear_acceleration_stdev * linear_acceleration_stdev;
   double angular_velocity_cov = angular_velocity_stdev * angular_velocity_stdev;
 
-  // From the UM7 datasheet for the dynamic accuracy from the EKF.
+
   double orientation_x_stdev, orientation_y_stdev, orientation_z_stdev;
-  private_nh.param<double>("orientation_x_stdev", orientation_x_stdev, (3.0 * 3.14159 / 180.0));
-  private_nh.param<double>("orientation_y_stdev", orientation_y_stdev, (3.0 * 3.14159 / 180.0));
-  private_nh.param<double>("orientation_z_stdev", orientation_z_stdev, (5.0 * 3.14159 / 180.0));
+
+  node->declare_parameter("orientation_x_stdev", rclcpp::ParameterValue(3.0 * 3.14159 / 180.0));
+  node->declare_parameter("orientation_y_stdev", rclcpp::ParameterValue(3.0 * 3.14159 / 180.0));
+  node->declare_parameter("orientation_z_stdev", rclcpp::ParameterValue(5.0 * 3.14159 / 180.0));
+  node->get_parameter("orientation_x_stdev",orientation_x_stdev);
+  node->get_parameter("orientation_y_stdev",orientation_y_stdev);
+  node->get_parameter("orientation_z_stdev",orientation_z_stdev);
+
 
   double orientation_x_covar = orientation_x_stdev * orientation_x_stdev;
   double orientation_y_covar = orientation_y_stdev * orientation_y_stdev;
   double orientation_z_covar = orientation_z_stdev * orientation_z_stdev;
 
-  // Enable converting from NED to ENU by default
   bool tf_ned_to_enu;
   bool orientation_in_robot_frame;
-  private_nh.param<bool>("tf_ned_to_enu", tf_ned_to_enu, true);
-  private_nh.param<bool>("orientation_in_robot_frame", orientation_in_robot_frame, false);
+  node->declare_parameter("tf_ned_to_enu", rclcpp::ParameterValue(true));
+  node->declare_parameter("orientation_in_robot_frame", rclcpp::ParameterValue(false));
+  node->get_parameter("tf_ned_to_enu",tf_ned_to_enu);
+  node->get_parameter("orientation_in_robot_frame",orientation_in_robot_frame);
+
+
+
   OutputAxisOption axes = OutputAxisOptions::DEFAULT;
+
   if (tf_ned_to_enu && orientation_in_robot_frame)
   {
-    RCLCPP_ERROR("Requested IMU data in two separate frames.");
+    RCLCPP_ERROR(node->get_logger(),"Requested IMU data in two separate frames.");
   }
   else if (tf_ned_to_enu)
   {
@@ -487,14 +524,13 @@ int main(int argc, char **argv)
   {
     axes = OutputAxisOptions::ROBOT_FRAME;
   }
-
-  // Use MagneticField message rather than Vector3Stamped.
-  bool use_magnetic_field_msg;
-  nh_->declare_parameter("use_magnetic_field_msg", rclcpp::ParameterValue(std::Bool(false));
-  nh_->get_parameter("use_magnetic_field_msg", use_magnetic_field_msg);
   
 
-  // These values do not need to be converted
+  bool use_magnetic_field_msg;
+  node->declare_parameter("use_magnetic_field_msg", rclcpp::ParameterValue(false));
+  node->get_parameter("use_magnetic_field_msg", use_magnetic_field_msg);
+
+
   imu_msg.linear_acceleration_covariance[0] = linear_acceleration_cov;
   imu_msg.linear_acceleration_covariance[4] = linear_acceleration_cov;
   imu_msg.linear_acceleration_covariance[8] = linear_acceleration_cov;
@@ -507,8 +543,12 @@ int main(int argc, char **argv)
   imu_msg.orientation_covariance[4] = orientation_y_covar;
   imu_msg.orientation_covariance[8] = orientation_z_covar;
 
+
+
   // Real Time Loop
   bool first_failure = true;
+  
+          
   while (rclcpp::ok())
   {
     try
@@ -517,17 +557,22 @@ int main(int argc, char **argv)
     }
     catch (const serial::IOException& e)
     {
-        RCLCPP_INFO("um7_driver was unable to connect to port %s.", port_.c_str());
+        
+        RCLCPP_INFO(node->get_logger(),"um7_driver was unable to connect to port %s.", port_.c_str());
+      
+        
     }
     if (ser.isOpen())
     {
-      RCLCPP_INFO("um7_driver successfully connected to serial port %s.", port_.c_str());
+      RCLCPP_INFO(node->get_logger(),"um7_driver successfully connected to serial port %s.", port_.c_str());
       first_failure = true;
+
       try
-      {
-       // um7::Comms sensor(&ser);
-       // configureSensor(&sensor, nh_);
-       // um7::Registers registers;
+      { 
+        um7::Comms sensor(&ser);
+        configureSensor(&sensor, node);
+        um7::Registers registers;
+          
        // ros::ServiceServer srv = imu_nh.advertiseService<um7::Reset::Request, um7::Reset::Response>(
        //     "reset", boost::bind(handleResetService, &sensor, _1, _2));
 
@@ -537,26 +582,29 @@ int main(int argc, char **argv)
           if (sensor.receive(&registers) == TRIGGER_PACKET)
           {
             // Triggered by arrival of final message in group.
-            imu_msg.header.stamp = ros::Time::now();
-            publishMsgs(registers, &imu_nh, imu_msg, axes, use_magnetic_field_msg);
-            ros::spinOnce();
+            //imu_msg.header.stamp = ros::Time::now();
+            //publishMsgs(registers, &imu_nh, imu_msg, axes, use_magnetic_field_msg);
+            //ros::spinOnce();
           }
+         
         }
       }
       catch(const std::exception& e)
       {
         if (ser.isOpen()) ser.close();
-        RCLCPP_ERROR(e.what());
-        RCLCPP_INFO("Attempting reconnection after error.");
-        ros::Duration(1.0).sleep();
+        RCLCPP_ERROR(node->get_logger(),e.what());
+        RCLCPP_INFO(node->get_logger(),"Attempting reconnection after error.");
+        //ros::Duration(1.0).sleep();
       }
+    
     }
-    else
+  else
     {
-      ROS_WARN_STREAM_COND(first_failure, "Could not connect to serial device "
-                           << port_ << ". Trying again every 1 second.");
+   //   RCLCPP_WARN(node->get_logger(),first_failure, "Could not connect to serial device " << port_ << ". Trying again every 1 second.");
       first_failure = false;
-      ros::Duration(1.0).sleep();
+      //ros::Duration(1.0).sleep();
     }
+    
   }
+  
 }

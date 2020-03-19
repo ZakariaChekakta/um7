@@ -21,6 +21,13 @@ find_package(serial REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
+
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/Reset.srv"
+)
+
 include_directories(include)
 
 set(
@@ -32,19 +39,11 @@ set(
   "serial"
 )
 
-include_directories(
-  include
-  ${rclcpp_INCLUDE_DIRS}
-  ${serial_INCLUDE_DIRS}
-  ${tf2_INCLUDE_DIRS}
-  ${tf2_ros_INCLUDE_DIRS}
-  ${geometry_msgs_INCLUDE_DIRS}
-  ${nav_msgs_INCLUDE_DIRS}
-  ${sensor_msgs_INCLUDE_DIRS}
-)
 
 add_executable(um7_driver
-  src/main.cpp
+src/main.cpp 
+src/registers.cpp 
+src/comms.cpp
 )
 ament_target_dependencies(um7_driver ${DEPENDENCIES})
 
@@ -74,6 +73,7 @@ endif()
 
 ament_export_include_directories(include)
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_export_dependencies(${DEPENDENCIES})
 
 ament_package()

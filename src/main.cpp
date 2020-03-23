@@ -39,7 +39,7 @@
 
 #include <chrono>
 #include <memory>
-
+#include <rclcpp/rate.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include "rclcpp/logger.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -107,17 +107,17 @@ void configureVector3(um7::Comms* sensor, const um7::Accessor<RegT>& reg,
  * registers.
  */
 
-/*
+
 template<typename RegT>
 void sendCommand(um7::Comms* sensor, const um7::Accessor<RegT>& reg, std::string human_name)
 {
-  RCLCPP_INFO_STREAM("Sending command: " << human_name);
+  //RCLCPP_INFO("Sending command: " << human_name);
   if (!sensor->sendWaitAck(reg))
   {
     throw std::runtime_error("Command to device failed.");
   }
 }
-*/
+
 
 /**
  * Send configuration messages to the UM7, critically, to turn on the value outputs
@@ -220,7 +220,7 @@ void configureSensor(um7::Comms* sensor, rclcpp::Node::SharedPtr nh_)
   bool zero_gyros;
   nh_->declare_parameter("zero_gyros", rclcpp::ParameterValue(true));
   nh_->get_parameter("zero_gyros",zero_gyros);
-  //if (zero_gyros) sendCommand(sensor, r.cmd_zero_gyros, "zero gyroscopes");
+  if (zero_gyros) sendCommand(sensor, r.cmd_zero_gyros, "zero gyroscopes");
 }
 
 
@@ -242,25 +242,33 @@ bool handleResetService(um7::Comms* sensor,
  * the ROS messages which are output.
  */
 
-/*
+
 void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs::msg::Imu& imu_msg,
     OutputAxisOption axes, bool use_magnetic_field_msg)
 {
-  static ros::Publisher imu_pub = imu_nh->advertise<sensor_msgs::msg::Imu>("data", 1, false);
-  static ros::Publisher mag_pub;
+  
+ 
+
+  auto imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data", 10);
+  rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr mag_pub_m;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr mag_pub_v;
+ 
+
   if (use_magnetic_field_msg)
   {
-    mag_pub = imu_nh->advertise<sensor_msgs::msg::MagneticField>("mag", 1, false);
+    mag_pub_m = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("mag", 10); //imu_nh->advertise<sensor_msgs::msg::MagneticField>("mag", 1, false);
   }
   else
   {
-    mag_pub = imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("mag", 1, false);
+    mag_pub_v = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("mag", 10);  //imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("mag", 1, false);
   }
-  static ros::Publisher rpy_pub = imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("rpy", 1, false);
-  static ros::Publisher temp_pub = imu_nh->advertise<std_msgs::msg::Float32>("temperature", 1, false);
 
-  if (imu_pub.getNumSubscribers() > 0)
-  {
+  
+   auto  rpy_pub = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("rpy", 1);
+   auto temp_pub = imu_nh->create_publisher<std_msgs::msg::Float32>("temperature", 1);
+
+  if (imu_nh->count_subscribers("data") > 0)
+ {
     switch (axes)
     {
       case OutputAxisOptions::ENU:
@@ -320,18 +328,19 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
         break;
       }
       default:
-        RCLCPP_ERROR("OuputAxes enum value invalid");
+        RCLCPP_ERROR(imu_nh->get_logger(),"OuputAxes enum value invalid");
     }
 
-    imu_pub.publish(imu_msg);
+    imu_pub->publish(imu_msg);
   }
 
+
   // Magnetometer.  transform to ROS axes
-  if (mag_pub.getNumSubscribers() > 0)
+  if (imu_nh->count_subscribers("mag") > 0)
   {
     if (use_magnetic_field_msg)
     {
-      sensor_msgs::MagneticField mag_msg;
+      sensor_msgs::msg::MagneticField mag_msg;
       mag_msg.header = imu_msg.header;
 
       switch (axes)
@@ -359,14 +368,14 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
           break;
         }
         default:
-          RCLCPP_ERROR("OuputAxes enum value invalid");
+          RCLCPP_ERROR(imu_nh->get_logger(),"OuputAxes enum value invalid");
       }
 
-      mag_pub.publish(mag_msg);
+      mag_pub_m->publish(mag_msg);
     }
     else
     {
-      geometry_msgs::Vector3Stamped mag_msg;
+      geometry_msgs::msg::Vector3Stamped mag_msg;
       mag_msg.header = imu_msg.header;
 
       switch (axes)
@@ -394,17 +403,17 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
           break;
         }
         default:
-          RCLCPP_ERROR("OuputAxes enum value invalid");
+          RCLCPP_ERROR(imu_nh->get_logger(),"OuputAxes enum value invalid");
       }
 
-      mag_pub.publish(mag_msg);
+      mag_pub_v->publish(mag_msg);
     }
   }
 
   // Euler attitudes.  transform to ROS axes
-  if (rpy_pub.getNumSubscribers() > 0)
+  if (imu_nh->count_subscribers("rpy") > 0)
   {
-    geometry_msgs::Vector3Stamped rpy_msg;
+    geometry_msgs::msg::Vector3Stamped rpy_msg;
     rpy_msg.header = imu_msg.header;
 
     switch (axes)
@@ -432,21 +441,22 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
         break;
       }
       default:
-        RCLCPP_ERROR("OuputAxes enum value invalid");
+        RCLCPP_ERROR(imu_nh->get_logger(),"OuputAxes enum value invalid");
     }
 
-    rpy_pub.publish(rpy_msg);
+    rpy_pub->publish(rpy_msg);
   }
 
   // Temperature
-  if (temp_pub.getNumSubscribers() > 0)
+  if (imu_nh->count_subscribers("temperature") > 0)
   {
-    std_msgs::Float32 temp_msg;
+    std_msgs::msg::Float32 temp_msg;
     temp_msg.data = r.temperature.get_scaled(0);
-    temp_pub.publish(temp_msg);
+    temp_pub->publish(temp_msg);
   }
+  
 }
-*/
+
 /**
  * Node entry-point. Handles ROS setup, and serial port connection/reconnection.
  */
@@ -582,8 +592,9 @@ int main(int argc, char **argv)
           if (sensor.receive(&registers) == TRIGGER_PACKET)
           {
             // Triggered by arrival of final message in group.
-            //imu_msg.header.stamp = ros::Time::now();
-            //publishMsgs(registers, &imu_nh, imu_msg, axes, use_magnetic_field_msg);
+              
+            imu_msg.header.stamp = rclcpp::Clock().now();
+            publishMsgs(registers, nh_, imu_msg, axes, use_magnetic_field_msg);
             //ros::spinOnce();
           }
          
@@ -594,7 +605,9 @@ int main(int argc, char **argv)
         if (ser.isOpen()) ser.close();
         RCLCPP_ERROR(node->get_logger(),e.what());
         RCLCPP_INFO(node->get_logger(),"Attempting reconnection after error.");
-        //ros::Duration(1.0).sleep();
+        rclcpp::sleep_for(std::chrono::milliseconds(1));
+      
+        
       }
     
     }
@@ -602,7 +615,7 @@ int main(int argc, char **argv)
     {
    //   RCLCPP_WARN(node->get_logger(),first_failure, "Could not connect to serial device " << port_ << ". Trying again every 1 second.");
       first_failure = false;
-      //ros::Duration(1.0).sleep();
+      rclcpp::sleep_for(std::chrono::milliseconds(1));
     }
     
   }

@@ -248,24 +248,27 @@ void publishMsgs(um7::Registers& r, rclcpp::Node::SharedPtr imu_nh, sensor_msgs:
 {
   
  
+  static const rclcpp::QoS qos = rclcpp::QoS(10)
+                               .reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT)
+                               .durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
 
-  auto imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data", 10);
+  auto imu_pub = imu_nh->create_publisher<sensor_msgs::msg::Imu>("data", qos);
   rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr mag_pub_m;
   rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr mag_pub_v;
  
 
   if (use_magnetic_field_msg)
   {
-    mag_pub_m = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("mag", 10); //imu_nh->advertise<sensor_msgs::msg::MagneticField>("mag", 1, false);
+    mag_pub_m = imu_nh->create_publisher<sensor_msgs::msg::MagneticField>("mag", qos); //imu_nh->advertise<sensor_msgs::msg::MagneticField>("mag", 1, false);
   }
   else
   {
-    mag_pub_v = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("mag", 10);  //imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("mag", 1, false);
+    mag_pub_v = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("mag", qos);  //imu_nh->advertise<geometry_msgs::msg::Vector3Stamped>("mag", 1, false);
   }
 
   
-   auto  rpy_pub = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("rpy", 1);
-   auto temp_pub = imu_nh->create_publisher<std_msgs::msg::Float32>("temperature", 1);
+   auto  rpy_pub = imu_nh->create_publisher<geometry_msgs::msg::Vector3Stamped>("rpy", qos);
+   auto temp_pub = imu_nh->create_publisher<std_msgs::msg::Float32>("temperature", qos);
 
   if (imu_nh->count_subscribers("data") > 0)
  {

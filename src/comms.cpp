@@ -59,7 +59,7 @@ int16_t Comms::receive(Registers* registers = NULL)
     size_t available = serial_->available();
     if (available > 255)
     {
-      //RCLCPP_WARN(nh_->get_logger(),"Serial read buffer is " << available << ", now flushing in an attempt to catch up.");
+      RCLCPP_WARN(nh_->get_logger(),"Serial read buffer is %f now flushing in an attempt to catch up.", available );
       serial_->flushInput();
     }
 

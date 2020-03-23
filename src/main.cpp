@@ -613,7 +613,7 @@ int main(int argc, char **argv)
     }
   else
     {
-   //   RCLCPP_WARN(node->get_logger(),first_failure, "Could not connect to serial device " << port_ << ". Trying again every 1 second.");
+      RCLCPP_WARN(node->get_logger()," %f Could not connect to serial device %s. Trying again every 1 second.",first_failure,port_);
       first_failure = false;
       rclcpp::sleep_for(std::chrono::milliseconds(1));
     }

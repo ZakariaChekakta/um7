@@ -82,8 +82,8 @@ int16_t Comms::receive(Registers* registers = NULL)
       if (!boost::algorithm::ends_with(snp, "snp")) throw SerialTimeout();
       if (snp.length() > 3)
       {
-       // RCLCPP_WARN(nh_->get_logger(),!first_spin_,
-         // "Discarded " << 5 + snp.length() - 3 << " junk byte(s) preceeding packet.");
+        RCLCPP_WARN(nh_->get_logger(),
+          "%f Discarded %f junk byte(s) preceeding packet.",!first_spin_, 5 + snp.length() - 3);
       }
       if (serial_->read(&type, 1) != 1) throw SerialTimeout();
       if (serial_->read(&address, 1) != 1) throw SerialTimeout();

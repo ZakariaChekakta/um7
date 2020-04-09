@@ -598,7 +598,7 @@ int main(int argc, char **argv)
               
             imu_msg.header.stamp = rclcpp::Clock().now();
             publishMsgs(registers, nh_, imu_msg, axes, use_magnetic_field_msg);
-            //ros::spinOnce();
+            rclcpp::spin_some(node);
           }
          
         }
